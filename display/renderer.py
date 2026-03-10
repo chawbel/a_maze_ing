@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 from mazegen.maze import Maze, NORTH, EAST, SOUTH, WEST
+import ctypes
 
 WIN_W: int = 1280
 WIN_H: int = 720
@@ -8,7 +9,6 @@ MARGIN: int = 20
 MIN_CELL: int = 4
 WALL_T: int = 2
 
-# Default palette — 0xRRGGBBAA
 C_BG: int = 0x000000FF
 C_WALL: int = 0xFFFFFFFF
 C_ENTRY: int = 0x00CC44FF
@@ -43,26 +43,30 @@ def _cell_px(row: int, col: int, cs: int, x0: int, y0: int) -> tuple[int, int]:
     return x0 + col * cs, y0 + row * cs
 
 
-def _fill(
-    pixels, img_w: int, img_h: int, px: int, py: int, pw: int, ph: int, color: int
-) -> None:
+def _fill(pixels, img_w, img_h, px, py, pw, ph, color):
     r = (color >> 24) & 0xFF
     g = (color >> 16) & 0xFF
-    b = (color >> 8) & 0xFF
-    a = color & 0xFF
+    b = (color >> 8)  & 0xFF
+    a =  color        & 0xFF
+
     x0c = max(px, 0)
     x1c = min(px + pw, img_w)
     y0c = max(py, 0)
     y1c = min(py + ph, img_h)
-    for y in range(y0c, y1c):
-        base = (y * img_w + x0c) * 4
-        for x in range(x0c, x1c):
-            o = base + (x - x0c) * 4
-            pixels[o] = r
-            pixels[o + 1] = g
-            pixels[o + 2] = b
-            pixels[o + 3] = a
 
+    if x0c >= x1c or y0c >= y1c:
+        return
+
+    row_bytes = (x1c - x0c) * 4
+    row_buf   = (ctypes.c_uint8 * row_bytes)(*([r, g, b, a] * (x1c - x0c)))
+
+    for y in range(y0c, y1c):
+        offset = (y * img_w + x0c) * 4
+        ctypes.memmove(
+            ctypes.addressof(pixels.contents) + offset,
+            row_buf,
+            row_bytes,
+        )
 
 def _bg(pixels, color):
     _fill(pixels, WIN_W, WIN_H, 0, 0, WIN_W, WIN_H, color)
@@ -163,7 +167,6 @@ class MazeRenderer:
 
         self._pixels = img.contents.pixels
 
-        # Palette (0xRRGGBBAA)
         self.c_bg = C_BG
         self.c_wall = C_WALL
         self.c_entry = C_ENTRY

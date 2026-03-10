@@ -79,7 +79,6 @@ class Maze:
                  height: int,
                  entry: tuple[int, int],
                  exit_cell: tuple[int, int]) -> None:
-        self._validate_params(width, height, entry, exit_cell)
         """
         Initialize the maze grid with all walls closed.
 
@@ -93,6 +92,8 @@ class Maze:
             ValueError: If dimensions are invalid or entry/exit are out of
                         bounds or identical.
         """
+
+        self._validate_params(width, height, entry, exit_cell)
         self.width: int = width
         self.height: int = height
         self.entry: tuple[int, int] = entry
@@ -232,33 +233,6 @@ class Maze:
 
         self.grid[row][col] &= ~direction
         self.grid[n_row][n_col] &= ~OPPOSITE[direction]
-
-    def add_wall(self, row: int, col: int, direction: int) -> None:
-        """
-        Add a wall between a cell and its neighbor in the given direction.
-
-        Both sides are updated simultaneously to maintain coherence.
-
-        Args:
-            row: Row of the current cell.
-            col: Column of the current cell.
-            direction: One of NORTH, EAST, SOUTH, WEST.
-
-        Raises:
-            ValueError: If the neighbor is out of bounds.
-        """
-        d_row, d_col = DIRECTION_DELTA[direction]
-        n_row, n_col = row + d_row, col + d_col
-
-        if not self.is_valid_cell(n_row, n_col):
-            raise ValueError(
-                f"Cannot add wall at ({row}, {col}) facing "
-                f"direction {direction}: neighbor ({n_row}, {n_col}) "
-                f"is out of bounds"
-            )
-
-        self.grid[row][col] |= direction
-        self.grid[n_row][n_col] |= OPPOSITE[direction]
 
     def has_wall(self, row: int, col: int, direction: int) -> bool:
         """

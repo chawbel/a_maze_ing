@@ -209,11 +209,14 @@ class MazeConfig:
         Returns:
             Parsed boolean.
         """
-        if value == "True":
+        normalized = value.strip().lower()
+        if normalized == "true":
             return True
-        if value == "False":
+        if normalized == "false":
             return False
-        raise ValueError(f"{key} must be 'True' or 'False', got '{value}'.")
+        raise ValueError(f"{key} must be 'True/true/TRUE' "
+                         "or 'False/false/FALSE', "
+                         f"got '{value}'.")
 
     def parse_output_file(self, value: str) -> str:
         """

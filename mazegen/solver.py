@@ -69,15 +69,6 @@ class MazeSolver:
         """
         return "".join(self.solve())
 
-    def reset(self) -> None:
-        """
-        Clear the cached solution.
-
-        Call this if the maze has been modified (e.g. regenerated) and you
-        need a fresh solve on the same MazeSolver instance.
-        """
-        self._path = None
-
     def _bfs(self) -> list[str]:
         """
         Run BFS from maze.entry to maze.exit.

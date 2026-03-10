@@ -64,19 +64,15 @@ class MazeGenerator:
             step with done=True when generation is complete.
         """
         if not self.maze.stamp_42():
-            min_width = (MIN_PATTERN_WIDTH
-                         if hasattr(self.maze, 'MIN_PATTERN_WIDTH')
-                         else 9)
-            min_height = (MIN_PATTERN_HEIGHT
-                          if hasattr(self.maze, 'MIN_PATTERN_HEIGHT')
-                          else 7)
+            min_width = MIN_PATTERN_WIDTH
+            min_height = MIN_PATTERN_HEIGHT
             print(
                 "Warning: maze is too small to fit the '42' pattern "
                 "(minimum "
                 f"{min_width}"
                 " cols x "
                 f"{min_height}"
-                " rows required"
+                " rows required)"
             )
 
         self.rng = random.Random(self.seed)
@@ -211,28 +207,3 @@ class MazeGenerator:
             if safe_walls:
                 chosen = self.rng.choice(safe_walls)
                 maze.remove_wall(row, col, chosen)
-
-    def get_dead_ends(self) -> list[tuple[int, int]]:
-        """
-        Return a list of all dead-end cells in the current maze state.
-
-        A dead end is a cell with exactly one open passage.
-
-        Returns:
-            List of (row, col) tuples for each dead-end cell.
-        """
-        maze = self.maze
-        dead_ends: list[tuple[int, int]] = []
-
-        for row in range(maze.height):
-            for col in range(maze.width):
-                if (row, col) in maze.pattern_42_cells:
-                    continue
-                open_passages = sum(
-                    1
-                    for direction in ALL_DIRECTIONS
-                    if not maze.has_wall(row, col, direction)
-                )
-                if open_passages == 1:
-                    dead_ends.append((row, col))
-        return dead_ends
