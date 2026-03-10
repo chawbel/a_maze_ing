@@ -1,7 +1,6 @@
 import sys
 import signal
 import ctypes
-from typing import Optional
 
 from mazegen.maze import Maze
 from mazegen.generator import MazeGenerator
@@ -12,11 +11,14 @@ from libmlx import mlx, mlx_loop_hook_func
 
 from display.renderer import MazeRenderer, WIN_W, WIN_H
 from display.interaction import (
-    AppState, KeyHandler, _directions_to_cells,
+    AppState,
+    KeyHandler,
+    _directions_to_cells,
     SPEED_STEPS,
 )
 
 _mlx_ptr = None
+
 
 def _signal_handler(sig, frame):
     """Clean shutdown on Ctrl+C (avoids GLFW callback issues on exit)."""
@@ -27,7 +29,7 @@ def _signal_handler(sig, frame):
 
 def write_output(maze: Maze, solver: MazeSolver, filepath: str) -> None:
     entry_row, entry_col = maze.entry
-    exit_row,  exit_col  = maze.exit
+    exit_row, exit_col = maze.exit
     with open(filepath, "w") as f:
         for row in maze.to_hex_grid():
             f.write(row + "\n")
@@ -38,28 +40,33 @@ def write_output(maze: Maze, solver: MazeSolver, filepath: str) -> None:
 
 
 def _build_maze(config: MazeConfig) -> Maze:
-    return Maze(width=config.width, height=config.height,
-                entry=config.entry, exit_cell=config.exit)
+    return Maze(
+        width=config.width,
+        height=config.height,
+        entry=config.entry,
+        exit_cell=config.exit,
+    )
 
 
 def _make_regen_cb(config: MazeConfig):
-    """Return closure: builds + generates + solves a fresh maze, returns (maze, dirs)."""
+    """Return closure: builds + generates + solves a fresh maze, returns (maze, dirs).
+    Used in non-animate mode only."""
+
     def _regen():
         maze = _build_maze(config)
         MazeGenerator(maze, seed=None, perfect=config.perfect).generate_full()
         solver = MazeSolver(maze)
         return maze, solver.solve()
+
     return _regen
 
 
 class AnimationState:
-    C_FRONTIER = (0xFF << 24) | (0x44 << 16) | (0xFF << 8) | 0xFF
-
     def __init__(self, gen_iter):
-        self._iter       = gen_iter
-        self.active      = True
-        self.speed_index = 2
-        self.frontier    = None
+        self._iter = gen_iter
+        self.active = True
+        self.speed_index = 0
+        self.frontier = None
 
     def advance(self, state: AppState, renderer: MazeRenderer) -> None:
         for _ in range(SPEED_STEPS[self.speed_index]):
@@ -74,16 +81,21 @@ class AnimationState:
                 return
         renderer.render(state.maze, path=[], show_42=state.show_42)
         if self.frontier:
-            renderer.paint_cell(state.maze, *self.frontier, self.C_FRONTIER)
+            from display.renderer import _to_rgba
+
+            c = _to_rgba(state.active_theme.get("C_FRONTIER", 0xFF44FF))
+            renderer.paint_cell(state.maze, *self.frontier, c)
 
     def _finish(self, state: AppState, renderer: MazeRenderer) -> None:
-        self.active   = False
+        self.active = False
         self.frontier = None
         solver = MazeSolver(state.maze)
         state.solution_cells = _directions_to_cells(state.maze.entry, solver.solve())
-        renderer.render(state.maze,
-                        path    = state.solution_cells if state.show_solution else [],
-                        show_42 = state.show_42)
+        renderer.render(
+            state.maze,
+            path=state.solution_cells if state.show_solution else [],
+            show_42=state.show_42,
+        )
 
 
 def main() -> None:
@@ -104,7 +116,7 @@ def main() -> None:
     animate: bool = getattr(config, "animate", False)
 
     try:
-        maze      = _build_maze(config)
+        maze = _build_maze(config)
         generator = MazeGenerator(maze, seed=config.seed, perfect=config.perfect)
 
         if animate:
@@ -129,7 +141,7 @@ def main() -> None:
     else:
         solution_cells = []
 
-    title   = b"A-Maze-ing  |  R=new  S=solution  C=colour  F=42  ESC=quit"
+    title = b"A-Maze-ing  |  R=new  S=solution  C=colour  F=42  ESC=quit"
     mlx_ptr = mlx.mlx_init(WIN_W, WIN_H, title, True)
     if not mlx_ptr:
         err = mlx.mlx_strerror(mlx.mlx_get_errno()).decode()
@@ -145,26 +157,39 @@ def main() -> None:
         sys.exit(1)
 
     state = AppState(
-        maze           = maze,
-        solution_cells = solution_cells,
-        show_solution  = False,
-        show_42        = True,
-        theme_index    = 0,
-        mlx_ptr        = mlx_ptr,
+        maze=maze,
+        solution_cells=solution_cells,
+        show_solution=False,
+        show_42=True,
+        theme_index=0,
+        mlx_ptr=mlx_ptr,
     )
 
-    anim: Optional[AnimationState] = None
+    anim_ref: list = [None]
     if animate and gen_iter is not None:
-        anim = AnimationState(gen_iter)
+        anim_ref[0] = AnimationState(gen_iter)
 
-    regen_cb   = _make_regen_cb(config)
-    key_handler = KeyHandler(state, regen_cb, renderer, mlx, anim)
+    if animate:
+
+        def regen_cb():
+            new_maze = _build_maze(config)
+            new_gen = MazeGenerator(new_maze, seed=None, perfect=config.perfect)
+            new_anim = AnimationState(new_gen.generate())
+            anim_ref[0] = new_anim
+            key_handler.set_anim(new_anim)
+            state.show_solution = False
+            return new_maze, []
+    else:
+        regen_cb = _make_regen_cb(config)
+
+    key_handler = KeyHandler(state, regen_cb, renderer, mlx, anim_ref[0])
 
     renderer.render(maze, path=[], show_42=state.show_42)
 
     @mlx_loop_hook_func
     def _frame(param):
         key_handler.poll(mlx_ptr)
+        anim = anim_ref[0]
         if anim is not None and anim.active:
             anim.advance(state, renderer)
 
